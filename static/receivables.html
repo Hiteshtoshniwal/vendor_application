@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Receivables - Vendor Manager</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="topbar" id="topbar"></div>
+<div class="container">
+  <div class="toolbar">
+    <h2 style="margin:0;">Money to be Received</h2>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-secondary" id="trashBtn">🗑 Trash</button>
+      <button class="btn btn-primary" id="addBtn">+ Add Customer Due</button>
+    </div>
+  </div>
+
+  <div class="tabs" id="statusTabs">
+    <button data-status="" class="active">All</button>
+    <button data-status="pending">Pending</button>
+    <button data-status="partial">Partially Paid</button>
+    <button data-status="paid">Fully Paid</button>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Search by customer name...">
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr id="tableHeadRow">
+          <th>Customer</th><th>Phone</th><th>Total</th><th>Paid</th><th>Balance</th><th>Due Date</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="recTable"></tbody>
+    </table>
+  </div>
+  <div class="empty-state" id="emptyState" style="display:none;">No records found.</div>
+</div>
+
+<!-- Add / Edit customer due modal -->
+<div class="modal-overlay" id="recModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add Customer Due</h3>
+    <form id="recForm">
+      <input type="hidden" id="recId">
+      <div class="field">
+        <label>Customer Name</label>
+        <input type="text" id="fName" required>
+      </div>
+      <div class="field">
+        <label>Phone</label>
+        <input type="text" id="fPhone">
+      </div>
+      <div class="field">
+        <label>Total Amount (₹)</label>
+        <input type="number" step="0.01" id="fTotal" value="0" required>
+      </div>
+      <div class="field" id="paidField">
+        <label>Amount Already Paid (₹)</label>
+        <input type="number" step="0.01" id="fPaid" value="0">
+      </div>
+      <div class="field">
+        <label>Due Date</label>
+        <input type="date" id="fDueDate">
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="fNotes" rows="2"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Record payment modal -->
+<div class="modal-overlay" id="paymentModal">
+  <div class="modal">
+    <h3>Record Payment</h3>
+    <p style="color:var(--muted); font-size:0.85rem;" id="paymentContext"></p>
+    <form id="paymentForm">
+      <input type="hidden" id="paymentRecId">
+      <div class="field">
+        <label>Amount Received (₹)</label>
+        <input type="number" step="0.01" id="paymentAmount" required>
+      </div>
+      <div class="field">
+        <label>Note (optional)</label>
+        <input type="text" id="paymentNote">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="paymentCancelBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Record Payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/receivables.js"></script>
+<script src="/js/install-prompt.js"></script>
+</body>
+</html>

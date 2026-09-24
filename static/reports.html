@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reports - Vendor Manager</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="topbar" id="topbar"></div>
+<div class="container">
+  <h2>Monthly Report</h2>
+  <div class="card" style="max-width:480px;">
+    <p style="color:var(--muted); font-size:0.9rem; margin-top:0;">
+      Download an Excel file with three sheets: current <b>Inventory</b> value,
+      <b>Receivables</b> (outstanding dues + payments received that month), and
+      <b>Profit</b> logged for that month.
+    </p>
+    <div class="field">
+      <label>Month</label>
+      <input type="month" id="monthPicker">
+    </div>
+    <button class="btn btn-primary" id="downloadBtn" style="width:100%; margin-top:8px;">
+      ⬇ Download Excel Report
+    </button>
+  </div>
+</div>
+<script src="/js/common.js"></script>
+<script>
+  initPage("reports");
+  const picker = document.getElementById("monthPicker");
+  const now = new Date();
+  picker.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  document.getElementById("downloadBtn").addEventListener("click", () => {
+    if (!picker.value) {
+      toast("Pick a month first", "danger");
+      return;
+    }
+    toast("Preparing your report...", "info", 2000);
+    window.location.href = `/api/reports/monthly?month=${picker.value}`;
+  });
+</script>
+<script src="/js/install-prompt.js"></script>
+</body>
+</html>
