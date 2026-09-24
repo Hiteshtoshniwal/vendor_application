@@ -21,16 +21,23 @@ def r2(value):
 
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "static")
 
-app = Flask(__name__, static_folder="static", static_url_path="/static")
+app = Flask(__name__, static_folder=None)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-this-secret-key")
 
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
+    # Neon/most Postgres hosts give a "postgres://" or "postgresql://" URL;
+    # SQLAlchemy wants the "postgresql://" form.
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
+    # No DATABASE_URL set (e.g. plain local development) -> fall back to
+    # SQLite. Vercel's filesystem is read-only except /tmp, so use that
+    # there; use a normal local file everywhere else. Once DATABASE_URL
+    # (Postgres) is set, this branch is never used on Vercel.
     if os.environ.get("VERCEL"):
         db_path = "/tmp/vendor.db"
     else:
@@ -42,24 +49,21 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 
 
+
 # ---------------------------------------------------------------------------
-# Frontend page and static asset serving (supports root-level CSS/JS/Manifest)
+# Frontend page serving (static HTML/CSS/JS) - no login required
 # ---------------------------------------------------------------------------
 
 @app.route("/")
 def serve_root():
-    return send_from_directory(app.static_folder, "dashboard.html")
+    return send_from_directory(FRONTEND_DIR, "dashboard.html")
 
 
-@app.route("/")
+@app.route("/<path:filename>")
 def serve_static_files(filename):
-    # Do not intercept API requests
-    if filename.startswith("api/"):
-        return jsonify({"error": "not_found"}), 404
-        
-    full_path = os.path.join(app.static_folder, filename)
+    full_path = os.path.join(FRONTEND_DIR, filename)
     if os.path.isfile(full_path):
-        return send_from_directory(app.static_folder, filename)
+        return send_from_directory(FRONTEND_DIR, filename)
     return jsonify({"error": "not_found"}), 404
 
 
@@ -68,7 +72,8 @@ def serve_static_files(filename):
 # ---------------------------------------------------------------------------
 
 def log_profit_snapshot(item):
-    """Record a profit snapshot for this item."""
+    """Record a profit snapshot for this item. Called whenever an item is
+    created or updated, so you get a history of margin changes over time."""
     snapshot = ProfitLog(
         item_id=item.id,
         item_name=item.name,
@@ -102,7 +107,7 @@ def api_inventory():
         if not item.name:
             return jsonify({"ok": False, "error": "name is required"}), 400
         db.session.add(item)
-        db.session.flush()
+        db.session.flush()  # assigns item.id before we log the first snapshot
         log_profit_snapshot(item)
         db.session.commit()
         return jsonify({"ok": True, "item": item.to_dict()})
@@ -128,7 +133,7 @@ def api_inventory_trash():
     return jsonify([i.to_dict() for i in items])
 
 
-@app.route("/api/inventory//restore", methods=["POST"])
+@app.route("/api/inventory/<int:item_id>/restore", methods=["POST"])
 def api_inventory_restore(item_id):
     item = db.session.get(InventoryItem, item_id)
     if not item:
@@ -139,7 +144,7 @@ def api_inventory_restore(item_id):
     return jsonify({"ok": True, "item": item.to_dict()})
 
 
-@app.route("/api/inventory//permanent", methods=["DELETE"])
+@app.route("/api/inventory/<int:item_id>/permanent", methods=["DELETE"])
 def api_inventory_permanent_delete(item_id):
     item = db.session.get(InventoryItem, item_id)
     if not item:
@@ -149,7 +154,7 @@ def api_inventory_permanent_delete(item_id):
     return jsonify({"ok": True})
 
 
-@app.route("/api/inventory/", methods=["PUT", "DELETE"])
+@app.route("/api/inventory/<int:item_id>", methods=["PUT", "DELETE"])
 def api_inventory_item(item_id):
     item = db.session.get(InventoryItem, item_id)
     if not item:
@@ -175,7 +180,7 @@ def api_inventory_item(item_id):
     return jsonify({"ok": True, "item": item.to_dict()})
 
 
-@app.route("/api/inventory//profit-history")
+@app.route("/api/inventory/<int:item_id>/profit-history")
 def api_item_profit_history(item_id):
     logs = (
         ProfitLog.query.filter_by(item_id=item_id)
@@ -186,7 +191,7 @@ def api_item_profit_history(item_id):
 
 
 # ---------------------------------------------------------------------------
-# Receivables API
+# Receivables API (money customers owe the vendor)
 # ---------------------------------------------------------------------------
 
 @app.route("/api/receivables", methods=["GET", "POST"])
@@ -232,7 +237,7 @@ def api_receivables_trash():
     return jsonify([r.to_dict() for r in items])
 
 
-@app.route("/api/receivables//restore", methods=["POST"])
+@app.route("/api/receivables/<int:rec_id>/restore", methods=["POST"])
 def api_receivable_restore(rec_id):
     r = db.session.get(Receivable, rec_id)
     if not r:
@@ -243,7 +248,7 @@ def api_receivable_restore(rec_id):
     return jsonify({"ok": True, "receivable": r.to_dict()})
 
 
-@app.route("/api/receivables//permanent", methods=["DELETE"])
+@app.route("/api/receivables/<int:rec_id>/permanent", methods=["DELETE"])
 def api_receivable_permanent_delete(rec_id):
     r = db.session.get(Receivable, rec_id)
     if not r:
@@ -253,7 +258,7 @@ def api_receivable_permanent_delete(rec_id):
     return jsonify({"ok": True})
 
 
-@app.route("/api/receivables/", methods=["PUT", "DELETE"])
+@app.route("/api/receivables/<int:rec_id>", methods=["PUT", "DELETE"])
 def api_receivable_item(rec_id):
     r = db.session.get(Receivable, rec_id)
     if not r:
@@ -276,7 +281,7 @@ def api_receivable_item(rec_id):
     return jsonify({"ok": True, "receivable": r.to_dict()})
 
 
-@app.route("/api/receivables//payment", methods=["POST"])
+@app.route("/api/receivables/<int:rec_id>/payment", methods=["POST"])
 def api_receivable_payment(rec_id):
     r = db.session.get(Receivable, rec_id)
     if not r:
@@ -334,7 +339,7 @@ def api_dashboard():
 
 
 # ---------------------------------------------------------------------------
-# Monthly Excel report
+# Monthly Excel report (Inventory / Receivables / Profit - 3 sheets)
 # ---------------------------------------------------------------------------
 
 HEADER_FILL = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
@@ -362,6 +367,7 @@ def build_monthly_report(year, month):
 
     wb = Workbook()
 
+    # --- Sheet 1: Inventory (current stock, as of report generation) ---
     ws1 = wb.active
     ws1.title = "Inventory"
     ws1.append([f"Inventory Summary - as of {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"])
@@ -387,6 +393,7 @@ def build_monthly_report(year, month):
     ws1[ws1.max_row][5].font = Font(bold=True)
     _autosize(ws1)
 
+    # --- Sheet 2: Receivables (dues + payments received this month) ---
     ws2 = wb.create_sheet("Receivables")
     ws2.append([f"Receivables Summary - {month_label}"])
     ws2.append([])
@@ -422,6 +429,7 @@ def build_monthly_report(year, month):
     ws2[ws2.max_row][1].font = Font(bold=True)
     _autosize(ws2)
 
+    # --- Sheet 3: Profit (snapshots logged during this month) ---
     ws3 = wb.create_sheet("Profit")
     ws3.append([f"Profit Log - {month_label}"])
     ws3.append(["Snapshots recorded whenever an item was added or updated this month."])
@@ -439,6 +447,7 @@ def build_monthly_report(year, month):
             CATEGORY_LABELS.get(log.category, log.category), log.item_name, log.quantity,
             log.purchase_price, log.price_per_unit, log.profit_per_unit, log.total_potential_profit,
         ])
+    # Latest snapshot per item this month -> overall potential profit total for the month
     latest_by_item = {}
     for log in logs:
         latest_by_item[log.item_id] = log.total_potential_profit
@@ -456,7 +465,7 @@ def build_monthly_report(year, month):
 
 @app.route("/api/reports/monthly")
 def api_monthly_report():
-    month_param = request.args.get("month")
+    month_param = request.args.get("month")  # expected "YYYY-MM"
     now = datetime.utcnow()
     try:
         if month_param:
@@ -481,6 +490,8 @@ def ensure_db():
         db.create_all()
 
 
+# Create tables on import too (needed for WSGI/gunicorn-based hosting,
+# not just "python app.py" during local development).
 ensure_db()
 
 if __name__ == "__main__":
