@@ -62,7 +62,7 @@ def api_debug_db_info():
     """Diagnostic only: confirms whether the app is actually using Postgres
     (Neon) or has fallen back to SQLite - no secrets exposed."""
     uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-    is_postgres = uri.startswith("postgresql://")
+    is_postgres = uri.startswith("postgresql")
     return jsonify({
         "database_url_env_var_present": bool(os.environ.get("DATABASE_URL")),
         "actually_using": "postgres (Neon) - persistent" if is_postgres else "sqlite - NOT persistent on Vercel",
