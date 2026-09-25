@@ -28,10 +28,13 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-this-secret-key"
 
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    # Neon/most Postgres hosts give a "postgres://" or "postgresql://" URL;
-    # SQLAlchemy wants the "postgresql://" form.
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    # Normalize whatever format the host gives us (postgres://, postgresql://,
+    # postgresql+psycopg://, etc.) to explicitly use psycopg2 - the driver we
+    # actually install below - so it doesn't matter which variant Neon (or
+    # any other host) hands us.
+    if "://" in database_url:
+        prefix, rest = database_url.split("://", 1)
+        database_url = "postgresql+psycopg2://" + rest
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 else:
     # No DATABASE_URL set (e.g. plain local development) -> fall back to
