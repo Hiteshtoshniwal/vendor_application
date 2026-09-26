@@ -1,6 +1,7 @@
 let currentCategory = new URLSearchParams(window.location.search).get("category") || "";
 let currentSearch = "";
 let viewingTrash = false;
+let currentItems = [];
 
 (async function () {
   initPage("inventory");
@@ -56,6 +57,7 @@ async function loadItems() {
   if (currentSearch) params.set("search", currentSearch);
   const res = await fetch("/api/inventory?" + params.toString());
   const items = await res.json();
+  currentItems = items;
 
   const tbody = document.getElementById("itemsTable");
   const emptyState = document.getElementById("emptyState");
@@ -72,10 +74,16 @@ async function loadItems() {
   emptyState.style.display = "none";
 
   tbody.innerHTML = items.map(i => `
-    <tr>
+    <tr data-item-id="${i.id}">
       <td><b>${escapeHtml(i.name)}</b>${i.notes ? `<div style="color:var(--muted); font-size:0.78rem;">${escapeHtml(i.notes)}</div>` : ""}</td>
       <td>${escapeHtml(i.category_label)}</td>
-      <td>${i.quantity} ${escapeHtml(i.unit)}</td>
+      <td>
+        <div class="qty-stepper">
+          <button class="qty-btn" onclick="adjustQuantity(${i.id}, -1)" title="Decrease">−</button>
+          <span class="qty-value">${i.quantity} ${escapeHtml(i.unit)}</span>
+          <button class="qty-btn" onclick="adjustQuantity(${i.id}, 1)" title="Increase">+</button>
+        </div>
+      </td>
       <td>${money(i.purchase_price)}</td>
       <td>${money(i.price_per_unit)}</td>
       <td style="color:${i.profit_per_unit >= 0 ? 'var(--success)' : 'var(--danger)'}; font-weight:600;">${money(i.profit_per_unit)}</td>
@@ -116,6 +124,33 @@ function renderTrashTable(items) {
       </td>
     </tr>
   `).join("");
+}
+
+async function adjustQuantity(id, delta) {
+  const item = currentItems.find(x => x.id === id);
+  if (!item) return;
+  const newQty = Math.max(0, Math.round((item.quantity + delta) * 100) / 100);
+
+  // Optimistic update: reflect the change immediately, then sync with the server.
+  item.quantity = newQty;
+  const row = document.querySelector(`tr[data-item-id="${id}"]`);
+  if (row) {
+    const qtyValueEl = row.querySelector(".qty-value");
+    if (qtyValueEl) qtyValueEl.textContent = `${newQty} ${item.unit}`;
+  }
+
+  const res = await fetch(`/api/inventory/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quantity: newQty }),
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    toast(data.error || "Could not update quantity", "danger");
+    loadItems(); // revert to server truth on failure
+  } else {
+    loadItems(); // refresh so stock value / low-stock badge stay in sync
+  }
 }
 
 function openModal() {
