@@ -92,7 +92,7 @@ async function loadRecords() {
       <td style="white-space:nowrap;">
         ${r.balance > 0 ? `<button class="btn btn-primary btn-sm" onclick="openPaymentModal(${r.id})">Record Payment</button>` : ""}
         <button class="btn btn-secondary btn-sm" onclick="editRecord(${r.id})">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteRecord(${r.id}, ${JSON.stringify(r.customer_name)})">Delete</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRecord(${r.id})">Delete</button>
       </td>
     </tr>
   `).join("");
@@ -120,7 +120,7 @@ function renderTrashTable(items) {
       <td>${money(r.balance)}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-primary btn-sm" onclick="restoreRecord(${r.id})">Restore</button>
-        <button class="btn btn-danger btn-sm" onclick="permanentDeleteRecord(${r.id}, ${JSON.stringify(r.customer_name)})">Delete Forever</button>
+        <button class="btn btn-danger btn-sm" onclick="permanentDeleteRecord(${r.id})">Delete Forever</button>
       </td>
     </tr>
   `).join("");
@@ -145,7 +145,6 @@ function editRecord(id) {
   document.getElementById("fPaid").value = r.amount_paid;
   document.getElementById("fDueDate").value = r.due_date || "";
   document.getElementById("fNotes").value = r.notes;
-  // amount_paid is edited only through payments once the record exists
   document.getElementById("paidField").style.display = "none";
   document.getElementById("recModal").classList.add("open");
 }
@@ -185,7 +184,9 @@ async function saveRecord(e) {
   }
 }
 
-async function deleteRecord(id, name) {
+async function deleteRecord(id) {
+  const r = allRecords.find(x => x.id === id);
+  const name = r ? r.customer_name : "this customer";
   const confirmed = await confirmDialog(`Delete "${name}"'s record? You can undo this for a short while.`, { title: "Delete record" });
   if (!confirmed) return;
   await fetch(`/api/receivables/${id}`, { method: "DELETE" });
@@ -203,7 +204,9 @@ async function restoreRecord(id) {
   toast("Record restored", "success");
 }
 
-async function permanentDeleteRecord(id, name) {
+async function permanentDeleteRecord(id) {
+  const r = allRecords.find(x => x.id === id);
+  const name = r ? r.customer_name : "this customer";
   const confirmed = await confirmDialog(`Permanently delete "${name}"'s record? This cannot be undone.`, { title: "Delete forever" });
   if (!confirmed) return;
   await fetch(`/api/receivables/${id}/permanent`, { method: "DELETE" });
@@ -211,7 +214,7 @@ async function permanentDeleteRecord(id, name) {
   toast("Record permanently deleted", "success");
 }
 
-function openPaymentModal(id) {
+async function openPaymentModal(id) {
   const r = allRecords.find(x => x.id === id);
   if (!r) return;
   document.getElementById("paymentRecId").value = id;

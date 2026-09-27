@@ -48,6 +48,7 @@ async function loadItems() {
   if (viewingTrash) {
     const res = await fetch("/api/inventory/trash");
     const items = await res.json();
+    currentItems = items;
     renderTrashTable(items);
     return;
   }
@@ -90,8 +91,8 @@ async function loadItems() {
       <td>${money(i.stock_value)}</td>
       <td>${i.low_stock ? `<span class="badge badge-danger">Low Stock</span>` : `<span class="badge badge-success">OK</span>`}</td>
       <td style="white-space:nowrap;">
-        <button class="btn btn-secondary btn-sm" onclick='editItem(${JSON.stringify(i)})'>Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteItem(${i.id}, ${JSON.stringify(i.name)})">Delete</button>
+        <button class="btn btn-secondary btn-sm" onclick="editItem(${i.id})">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem(${i.id})">Delete</button>
       </td>
     </tr>
   `).join("");
@@ -120,7 +121,7 @@ function renderTrashTable(items) {
       <td>${i.updated_at || "-"}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-primary btn-sm" onclick="restoreItem(${i.id})">Restore</button>
-        <button class="btn btn-danger btn-sm" onclick="permanentDeleteItem(${i.id}, ${JSON.stringify(i.name)})">Delete Forever</button>
+        <button class="btn btn-danger btn-sm" onclick="permanentDeleteItem(${i.id})">Delete Forever</button>
       </td>
     </tr>
   `).join("");
@@ -131,7 +132,6 @@ async function adjustQuantity(id, delta) {
   if (!item) return;
   const newQty = Math.max(0, Math.round((item.quantity + delta) * 100) / 100);
 
-  // Optimistic update: reflect the change immediately, then sync with the server.
   item.quantity = newQty;
   const row = document.querySelector(`tr[data-item-id="${id}"]`);
   if (row) {
@@ -147,9 +147,9 @@ async function adjustQuantity(id, delta) {
   const data = await res.json();
   if (!data.ok) {
     toast(data.error || "Could not update quantity", "danger");
-    loadItems(); // revert to server truth on failure
+    loadItems();
   } else {
-    loadItems(); // refresh so stock value / low-stock badge stay in sync
+    loadItems();
   }
 }
 
@@ -161,7 +161,9 @@ function openModal() {
   document.getElementById("itemModal").classList.add("open");
 }
 
-function editItem(item) {
+function editItem(id) {
+  const item = currentItems.find(x => x.id === id);
+  if (!item) return;
   document.getElementById("modalTitle").textContent = "Edit Item";
   document.getElementById("itemId").value = item.id;
   document.getElementById("fCategory").value = item.category;
@@ -210,7 +212,9 @@ async function saveItem(e) {
   }
 }
 
-async function deleteItem(id, name) {
+async function deleteItem(id) {
+  const item = currentItems.find(x => x.id === id);
+  const name = item ? item.name : "this item";
   const confirmed = await confirmDialog(`Delete "${name}"? You can undo this for a short while.`, { title: "Delete item" });
   if (!confirmed) return;
   await fetch(`/api/inventory/${id}`, { method: "DELETE" });
@@ -228,7 +232,9 @@ async function restoreItem(id) {
   toast("Item restored", "success");
 }
 
-async function permanentDeleteItem(id, name) {
+async function permanentDeleteItem(id) {
+  const item = currentItems.find(x => x.id === id);
+  const name = item ? item.name : "this item";
   const confirmed = await confirmDialog(`Permanently delete "${name}"? This cannot be undone.`, { title: "Delete forever" });
   if (!confirmed) return;
   await fetch(`/api/inventory/${id}/permanent`, { method: "DELETE" });
